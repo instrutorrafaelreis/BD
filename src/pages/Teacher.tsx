@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, Download, Trophy, Users, Star, Clock, Home } from 'lucide-react';
+import { ShieldAlert, Download, Trophy, Users, Star, Clock, Home, BookOpen, AlertTriangle } from 'lucide-react';
 import { questions } from '../data/questions';
 
 export const Teacher = () => {
@@ -33,10 +33,17 @@ export const Teacher = () => {
   };
 
   const exportCSV = () => {
-    let csv = 'Posicao,Nome,Turma,Pontuacao,Nota,Acertos,Tempo(s)\n';
+    let csv = 'Posicao,Nome,Turma,Pontuacao,Nota,Acertos,Tempo(s),Fundamentos,Conceitual,Logico,Tipos,SQL,Integracao\n';
     users.forEach((u, i) => {
       const nota = (u.percentage / 10).toFixed(1);
-      csv += `${i + 1},${u.name},${u.turma},${u.xp},${nota},${u.correctCount},${u.duration}\n`;
+      
+      const getCatP = (cat: string) => {
+        const c = u.performance[cat];
+        if (!c || c.total === 0) return 0;
+        return Math.round((c.correct / c.total) * 100);
+      };
+
+      csv += `${i + 1},${u.name},${u.turma},${u.xp},${nota},${u.correctCount},${u.duration},${getCatP('FUNDAMENTOS')},${getCatP('CONCEITUAL')},${getCatP('LÓGICO')},${getCatP('TIPOS')},${getCatP('SQL')},${getCatP('INTEGRAÇÃO')}\n`;
     });
     
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -86,6 +93,34 @@ export const Teacher = () => {
     return `${m}:${s}`;
   };
 
+  // Questões Status
+  const questionStats = questions.map(q => {
+    let correct = 0;
+    let wrong = 0;
+    users.forEach(u => {
+      if (u.answers && u.answers[q.id] === true) correct++;
+      else if (u.answers && u.answers[q.id] === false) wrong++;
+    });
+    const total = correct + wrong;
+    const errorRate = total > 0 ? Math.round((wrong / total) * 100) : 0;
+    const correctRate = total > 0 ? Math.round((correct / total) * 100) : 0;
+    
+    // Determine the text answer if possible
+    let answerText = 'Ver sistema';
+    if (q.type === 'multiple_choice') answerText = q.options[q.correctOption];
+    if (q.type === 'sql_complete') answerText = q.expectedWord;
+    if (q.type === 'sql_input') answerText = q.expectedQuery[0];
+    if (q.type === 'drag_drop_blocks') answerText = 'Ordem correta';
+    if (q.type === 'drag_drop_relationship') answerText = q.correctSequence.join(' - ');
+
+    return { ...q, correct, wrong, total, errorRate, correctRate, answerText };
+  });
+
+  const hardestQuestions = [...questionStats]
+    .filter(q => q.total > 0)
+    .sort((a, b) => b.errorRate - a.errorRate)
+    .slice(0, 3);
+
   if (fullscreen) {
     return (
       <div className="min-h-screen bg-[#0a0f1d] p-8 flex flex-col">
@@ -121,6 +156,7 @@ export const Teacher = () => {
               </div>
             </div>
           ))}
+          {users.length === 0 && <div className="text-center text-gray-500 py-10">Nenhum aluno finalizou ainda.</div>}
         </div>
       </div>
     );
@@ -168,9 +204,31 @@ export const Teacher = () => {
           </div>
         </div>
 
+        {/* Questões com Mais Dificuldade */}
+        {users.length > 0 && (
+          <div className="bg-[#111827] border border-red-900/50 p-6 rounded-2xl">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-red-400 mb-6">
+              <AlertTriangle className="w-5 h-5" />
+              Questões com Mais Dificuldade
+            </h2>
+            <div className="grid md:grid-cols-3 gap-4">
+              {hardestQuestions.map(hq => (
+                <div key={hq.id} className="bg-black/50 border border-red-900/50 p-4 rounded-xl">
+                  <div className="text-red-400 font-bold mb-1">Questão {hq.id}</div>
+                  <div className="text-2xl font-black text-white">{hq.errorRate}% erraram</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ranking */}
         <div className="bg-[#111827] border border-gray-800 rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-gray-800">
-            <h2 className="text-xl font-bold">Ranking Completo</h2>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-400" />
+              Ranking Completo
+            </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -200,6 +258,50 @@ export const Teacher = () => {
                     <td colSpan={6} className="p-8 text-center text-gray-500">Nenhum aluno finalizou ainda.</td>
                   </tr>
                 )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Gabarito */}
+        <div className="bg-[#111827] border border-cyan-900/30 rounded-2xl overflow-hidden">
+          <div className="p-6 border-b border-gray-800">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
+              <BookOpen className="w-5 h-5" />
+              Gabarito e Estatísticas por Questão
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-black/50 text-gray-400">
+                <tr>
+                  <th className="p-4">Q</th>
+                  <th className="p-4 min-w-[200px]">Enunciado Resumido</th>
+                  <th className="p-4">Resposta Correta</th>
+                  <th className="p-4 text-center">Acertos</th>
+                  <th className="p-4 text-center">Erros</th>
+                  <th className="p-4 text-center">% Acerto</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800">
+                {questionStats.map((q) => (
+                  <tr key={q.id} className="hover:bg-gray-800/50">
+                    <td className="p-4 font-mono text-gray-500">{q.id}</td>
+                    <td className="p-4 text-gray-300 truncate max-w-xs" title={q.text}>
+                      {q.text.split('\n')[0]}
+                    </td>
+                    <td className="p-4 text-cyan-400 text-xs">
+                      {q.answerText}
+                    </td>
+                    <td className="p-4 text-center font-bold text-green-400">{q.correct}</td>
+                    <td className="p-4 text-center font-bold text-red-400">{q.wrong}</td>
+                    <td className="p-4 text-center font-mono">
+                      <span className={q.correctRate < 50 ? 'text-red-400' : 'text-green-400'}>
+                        {q.correctRate}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
