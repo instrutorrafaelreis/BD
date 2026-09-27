@@ -7,6 +7,5 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react()
-  ],
-  base: '/BD/'
+  ]
 })

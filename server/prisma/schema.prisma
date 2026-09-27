@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id               String           @id @default(uuid())
+  name             String
+  username         String           @unique @default(cuid())
+  password         String           @default("123456")
+  role             String
+  provas           Prova[]          @relation("ProfessorProvas")
+  atividades       Atividade[]      @relation("ProfessorAtividades")
+  submissoes       Submissao[]
+  progressosProva  ProgressoProva[]
+  senhaTemporaria  Boolean @default(false)
+  matricula        String?
+  podeCriarTurma   Boolean @default(false)
+  turmasMinistradas Turma[] @relation("TurmaProfessor")
+  turmasMatriculadas Aluno_Turma[]
+}
+
+model Categoria {
+  id     String  @id @default(uuid())
+  nome   String  @unique
+  icone  String?
+  cor    String?
+  cursos Curso[]
+}
+
+model Curso {
+  id          String      @id @default(uuid())
+  name        String
+  categoriaId String?
+  categoria   Categoria?  @relation(fields: [categoriaId], references: [id])
+  provas      Prova[]
+  turmas      Turma[]
+}
+
+model Capacidade {
+  id         String                @id @default(uuid())
+  name       String
+  type       String
+  atividades AtividadeCapacidade[]
+}
+
+model Conhecimento {
+  id         String                  @id @default(uuid())
+  name       String
+  atividades AtividadeConhecimento[]
+}
+
+model Prova {
+  id          String           @id @default(uuid())
+  title       String
+  description String
+  professorId String
+  cursoId     String
+  createdAt   DateTime         @default(now())
+
+  professor   User             @relation("ProfessorProvas", fields: [professorId], references: [id])
+  curso       Curso            @relation(fields: [cursoId], references: [id])
+  atividades  Atividade[]
+  progressos  ProgressoProva[]
+  turmas      Prova_Turma[]
+}
+
+model Atividade {
+  id            String                  @id @default(uuid())
+  title         String
+  description   String
+  professorId   String
+  provaId       String
+  fileUrl       String?
+  type          String                  @default("UPLOAD") // UPLOAD, MULTIPLA_ESCOLHA, COMPLETAR_CODIGO, CODIGO_EMBARALHADO
+  configData    String?                 // JSON configuration for the activity
+  createdAt     DateTime                @default(now())
+
+  professor     User                    @relation("ProfessorAtividades", fields: [professorId], references: [id])
+  prova         Prova                   @relation(fields: [provaId], references: [id])
+  
+  capacidades   AtividadeCapacidade[]
+  conhecimentos AtividadeConhecimento[]
+  submissoes    Submissao[]
+}
+
+model AtividadeCapacidade {
+  atividadeId   String
+  capacidadeId  String
+  atividade     Atividade   @relation(fields: [atividadeId], references: [id])
+  capacidade    Capacidade  @relation(fields: [capacidadeId], references: [id])
+  
+  @@id([atividadeId, capacidadeId])
+}
+
+model AtividadeConhecimento {
+  atividadeId    String
+  conhecimentoId String
+  atividade      Atividade    @relation(fields: [atividadeId], references: [id])
+  conhecimento   Conhecimento @relation(fields: [conhecimentoId], references: [id])
+
+  @@id([atividadeId, conhecimentoId])
+}
+
+model Submissao {
+  id          String    @id @default(uuid())
+  atividadeId String
+  alunoId     String
+  answerText  String?
+  fileUrl     String?
+  score       Int?
+  feedback    String?
+  submittedAt DateTime  @default(now())
+
+  atividade   Atividade @relation(fields: [atividadeId], references: [id])
+  aluno       User      @relation(fields: [alunoId], references: [id])
+
+  @@unique([alunoId, atividadeId])
+}
+
+model ProgressoProva {
+  id             String    @id @default(uuid())
+  alunoId        String
+  provaId        String
+  currentIndex   Int       @default(0)
+  streak         Int       @default(0)
+  xpAccumulated  Int       @default(0)
+  vidasRestantes Int       @default(3)
+  isFinished     Boolean   @default(false)
+  startedAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  aluno          User      @relation(fields: [alunoId], references: [id])
+  prova          Prova     @relation(fields: [provaId], references: [id])
+
+  @@unique([alunoId, provaId])
+}
+
+model Turma {
+  id                    String   @id @default(uuid())
+  nome                  String
+  cursoId               String
+  curso                 Curso    @relation(fields: [cursoId], references: [id])
+  professorResponsavelId String
+  professorResponsavel  User     @relation("TurmaProfessor", fields: [professorResponsavelId], references: [id])
+  criadoPor             String   // 'ADMIN' | 'PROFESSOR'
+  alunos                Aluno_Turma[]
+  provas                Prova_Turma[]
+  createdAt             DateTime @default(now())
+}
+
+model Aluno_Turma {
+  id       String @id @default(uuid())
+  turmaId  String
+  turma    Turma  @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  alunoId  String
+  aluno    User   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  @@unique([turmaId, alunoId])
+}
+
+model Prova_Turma {
+  id      String @id @default(uuid())
+  provaId String
+  prova   Prova  @relation(fields: [provaId], references: [id], onDelete: Cascade)
+  turmaId String
+  turma   Turma  @relation(fields: [turmaId], references: [id], onDelete: Cascade)
+  @@unique([provaId, turmaId])
+}
