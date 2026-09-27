@@ -305,6 +305,24 @@ export const Professor: React.FC = () => {
     setSubAbaAtiva('lancar_atividade'); setGrupoAtivo('provas');
   };
 
+  
+  const handleClearForm = () => {
+    setTitle(''); setDescription(''); setSelectedCaps([]); setSelectedCons([]);
+    setType('UPLOAD'); setActivityFilter('Todas');
+    setOptions(['', '', '', '']); setCorrectOption(0);
+    setExpectedCode(''); setExpectedOutput(''); setIsMultipleChoice(false);
+    setExpectedCommand(''); setAcceptedAnswers(['']);
+    setPairs([{ left: '', right: '' }]); setCorrections([{ line: 0, text: '' }]);
+    setIaBadgeVisible(false);
+    
+    // Gamification
+    setShowGamification(false); setNivelDificuldade('MEDIO'); setXpBase(100);
+    setTemTimer(false); setSegundosLimite(60); setBonusVelocidade(false);
+    setDicaDisponivel(false); setTextoDica(''); setCustoXpDica(10);
+    setEhQuestaoSecreta(false); setCondicaoDesbloqueio('');
+    setTemBauBonus(false);
+  };
+
   const handleCreateActivity = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !provaId || selectedCaps.length === 0 || selectedCons.length === 0) {
@@ -537,6 +555,75 @@ export const Professor: React.FC = () => {
                   )}
                 </div>
                 <div><label className="block text-sm text-gray-400 mb-1">Enunciado (Markdown)</label><textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white h-24 font-mono text-sm" required /></div>
+
+                {/* DYNAMIC FIELDS BASED ON TYPE */}
+                {type === 'MULTIPLA_ESCOLHA' && (
+                  <div className="space-y-2 mt-4 border-t border-gray-700 pt-4">
+                    <label className="block text-sm text-gray-400 mb-1">Opções de Resposta</label>
+                    {options.map((opt, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input type="radio" name="correct" checked={correctOption === i} onChange={() => setCorrectOption(i)} />
+                        <input type="text" value={opt} onChange={e => { const newOpts = [...options]; newOpts[i] = e.target.value; setOptions(newOpts); }} className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm" placeholder={`Opção ${i+1}`} required />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {(type === 'COMPLETAR_CODIGO' || type === 'CODIGO_EMBARALHADO' || type === 'SEQUENCIA_LOGICA') && (
+                  <div className="mt-4 border-t border-gray-700 pt-4">
+                    <label className="block text-sm text-gray-400 mb-1">{type === 'SEQUENCIA_LOGICA' ? 'Passos na Ordem Correta (um por linha)' : 'Código Correto / Linhas Corretas'}</label>
+                    <textarea value={expectedCode} onChange={e => setExpectedCode(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-sm h-32" placeholder="Escreva o código ou os passos..." required />
+                  </div>
+                )}
+                
+                {type === 'PREDICT_OUTPUT' && (
+                  <div className="mt-4 border-t border-gray-700 pt-4">
+                    <label className="block text-sm text-gray-400 mb-1">Saída Esperada (Output Exato)</label>
+                    <input type="text" value={expectedOutput} onChange={e => setExpectedOutput(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-sm" required />
+                  </div>
+                )}
+                
+                {type === 'TERMINAL_SIMULADO' && (
+                  <div className="mt-4 border-t border-gray-700 pt-4">
+                    <label className="block text-sm text-gray-400 mb-1">Comando Esperado</label>
+                    <input type="text" value={expectedCommand} onChange={e => setExpectedCommand(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-sm" placeholder="Ex: git commit -m 'mensagem'" required />
+                  </div>
+                )}
+                
+                {type === 'COMPLETE_FRASE' && (
+                  <div className="mt-4 border-t border-gray-700 pt-4">
+                    <label className="block text-sm text-gray-400 mb-1">Palavra(s) Aceita(s) (separadas por vírgula)</label>
+                    <input type="text" value={acceptedAnswers.join(', ')} onChange={e => setAcceptedAnswers(e.target.value.split(',').map(s => s.trim()))} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm" required />
+                  </div>
+                )}
+                
+                {type === 'DEBUG_CHALLENGE' && (
+                  <div className="mt-4 border-t border-gray-700 pt-4">
+                    <label className="block text-sm text-gray-400 mb-1">Correção (Linha e Texto Correto)</label>
+                    <div className="flex gap-2">
+                      <input type="number" placeholder="Nº Linha" value={corrections[0]?.line || ''} onChange={e => setCorrections([{ line: parseInt(e.target.value), text: corrections[0]?.text || '' }])} className="w-24 bg-gray-900 border border-gray-700 rounded p-2 text-white" required />
+                      <input type="text" placeholder="Código correto da linha..." value={corrections[0]?.text || ''} onChange={e => setCorrections([{ line: corrections[0]?.line || 0, text: e.target.value }])} className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono" required />
+                    </div>
+                  </div>
+                )}
+                
+                {type === 'DIAGRAMA_ASSOCIACAO' && (
+                  <div className="mt-4 border-t border-gray-700 pt-4">
+                    <label className="block text-sm text-gray-400 mb-1">Pares Corretos (ex: Backend - Node.js)</label>
+                    {pairs.map((p, i) => (
+                      <div key={i} className="flex gap-2 mb-2">
+                        <input type="text" placeholder="Termo 1" value={p.left} onChange={e => { const newP = [...pairs]; newP[i].left = e.target.value; setPairs(newP); }} className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm" />
+                        <span className="text-gray-500 pt-2">-&gt;</span>
+                        <input type="text" placeholder="Termo 2" value={p.right} onChange={e => { const newP = [...pairs]; newP[i].right = e.target.value; setPairs(newP); }} className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm" />
+                        {i === pairs.length - 1 ? (
+                          <button type="button" onClick={() => setPairs([...pairs, { left: '', right: '' }])} className="text-green-400 px-2">+</button>
+                        ) : (
+                          <button type="button" onClick={() => setPairs(pairs.filter((_, idx) => idx !== i))} className="text-red-400 px-2">-</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 2. GAMIFICAÇÃO */}
@@ -683,7 +770,10 @@ export const Professor: React.FC = () => {
                 </div>
               </div>
 
-              <button type="submit" className="w-full bg-blue-600 py-3 rounded-lg text-white font-black uppercase tracking-wider hover:bg-blue-500 hover:scale-[1.01] transition-all shadow-lg">Publicar Atividade</button>
+              <div className="flex gap-4">
+                <button type="button" onClick={handleClearForm} className="flex-1 bg-gray-700 py-3 rounded-lg text-white font-black uppercase tracking-wider hover:bg-gray-600 transition-all shadow-lg">Limpar</button>
+                <button type="submit" className="flex-[2] bg-blue-600 py-3 rounded-lg text-white font-black uppercase tracking-wider hover:bg-blue-500 hover:scale-[1.01] transition-all shadow-lg">Publicar Atividade</button>
+              </div>
             </form>
           </div>
 
