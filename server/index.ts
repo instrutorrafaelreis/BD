@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import axios from 'axios';
 import express from 'express';
 import multer from 'multer';
@@ -91,6 +92,47 @@ app.post('/api/provas', async (req, res) => {
 });
 
 // Endpoint for Deep Copy / Clonagem
+app.patch('/api/provas/:id/pin', async (req, res) => {
+  const { id } = req.params;
+  const { pin, userId } = req.body;
+  
+  if (!/^\d{4}$/.test(pin) || !userId) {
+    return res.status(400).json({ error: 'Parâmetros inválidos' });
+  }
+  
+  try {
+    const prova = await prisma.prova.findUnique({ where: { id } });
+    if (!prova) return res.status(404).json({ error: 'Prova não encontrada' });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (prova.professorId !== userId && user?.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
+    const updated = await prisma.prova.update({ where: { id }, data: { pin } });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/provas/:id/ativar', async (req, res) => {
+  const { id } = req.params;
+  const { ativa, userId } = req.body;
+  if (typeof ativa !== 'boolean' || !userId) return res.status(400).json({ error: 'Parâmetros inválidos' });
+  try {
+    const prova = await prisma.prova.findUnique({ where: { id } });
+    if (!prova) return res.status(404).json({ error: 'Prova não encontrada' });
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (prova.professorId !== userId && user?.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    const updated = await prisma.prova.update({ where: { id }, data: { ativa } });
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/provas/:id/clonar', async (req, res) => {
   const { id } = req.params;
   const { novaTurmaId } = req.body; 
@@ -574,127 +616,88 @@ const rateLimits = new Map();
 
 app.post('/api/ia/gerar-atividade', async (req, res) => {
   try {
-    const { tipo, assunto, categoria, nivelDificuldade, professorId } = req.body;
+    const { tipo, assunto, nivelDificuldade, professorId } = req.body;
     
-    // Rate Limiting Basic
     const pid = professorId || 'anon';
     const now = Date.now();
     let limitInfo = rateLimits.get(pid);
     if (!limitInfo || now > limitInfo.resetTime) {
       limitInfo = { count: 0, resetTime: now + 3600000 };
     }
-    if (limitInfo.count >= 20) {
-      return res.status(429).json({ error: "Limite de 20 gerações por hora atingido." });
+    if (limitInfo.count >= 200) {
+      return res.status(429).json({ error: "Limite atingido." });
     }
     limitInfo.count++;
     rateLimits.set(pid, limitInfo);
 
-    const supported = ['MULTIPLA_ESCOLHA', 'COMPLETAR_CODIGO', 'COMPLETE_FRASE', 'TERMINAL_SIMULADO'];
-    if (!supported.includes(tipo)) {
-      return res.status(400).json({ error: "Tipo de atividade não suportado pela IA no momento." });
-    }
     if (!assunto || assunto.length > 300) {
-      return res.status(400).json({ error: "Assunto inválido ou excede o limite de 300 caracteres." });
+      return res.status(400).json({ error: "Assunto invalido." });
     }
 
-    let systemPrompt = "Você é um assistente educacional que ajuda professores a criar questões. RESPONDA APENAS E ESTRITAMENTE COM UM JSON VÁLIDO. NENHUM TEXTO FORA DO JSON. NENHUMA EXPLICAÇÃO. NENHUMA FORMATAÇÃO MARKDOWN NO COMEÇO OU FIM.\n\n";
-    
+    const openai = new OpenAI({
+      apiKey: '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',
+      baseURL: 'https://integrate.api.nvidia.com/v1',
+    });
+
+    let formatInstructions = "";
     if (tipo === 'MULTIPLA_ESCOLHA') {
-      systemPrompt += `Crie uma questão de múltipla escolha sobre '${assunto}', nível ${nivelDificuldade}.
-Schema JSON:
-{
-  "title": "Título curto da questão",
-  "description": "Enunciado claro e direto",
-  "options": ["Alternativa 1", "Alternativa 2", "Alternativa 3", "Alternativa 4"],
-  "correct": 0
-}`;
-    } else if (tipo === 'COMPLETAR_CODIGO') {
-      systemPrompt += `Crie uma questão de completar código sobre '${assunto}', nível ${nivelDificuldade}.
-Schema JSON:
-{
-  "title": "Título curto",
-  "description": "Enunciado explicando o que o aluno deve fazer. Inclua o código base com um espaço para completar, se necessário.",
-  "expected": "Código exato que o aluno deve preencher"
-}`;
-    } else if (tipo === 'COMPLETE_FRASE') {
-      systemPrompt += `Crie uma questão conceitual de preencher lacuna sobre '${assunto}', nível ${nivelDificuldade}.
-Schema JSON:
-{
-  "title": "Título curto",
-  "description": "Uma frase com a lacuna marcada por ____.",
-  "acceptedAnswers": ["Resposta exata 1", "Sinônimo ou variação aceita 2"]
-}`;
+      formatInstructions = `"options" (array com 4 opcoes string), "correct" (numero 0 a 3)`;
+    } else if (tipo === 'COMPLETAR_CODIGO' || tipo === 'CODIGO_EMBARALHADO' || tipo === 'SEQUENCIA_LOGICA') {
+      formatInstructions = `"expectedCode" ou "expected" (string com o codigo, use \\n)`;
+    } else if (tipo === 'PREDICT_OUTPUT') {
+      formatInstructions = `"expectedOutput" (string com a saida exata)`;
     } else if (tipo === 'TERMINAL_SIMULADO') {
-      systemPrompt += `Crie um desafio de comando de terminal sobre '${assunto}', nível ${nivelDificuldade}.
-Schema JSON:
-{
-  "title": "Título curto",
-  "description": "O cenário ou tarefa que o aluno deve executar no terminal.",
-  "expectedCommand": "Comando exato esperado (ex: git commit -m 'feat')"
-}`;
+      formatInstructions = `"expectedCommand" (string, comando terminal ex git commit)`;
+    } else if (tipo === 'COMPLETE_FRASE') {
+      formatInstructions = `"acceptedAnswers" (array de strings)`;
+    } else if (tipo === 'DIAGRAMA_ASSOCIACAO') {
+      formatInstructions = `"pairs" (array de objetos com "left" e "right")`;
+    } else if (tipo === 'DEBUG_CHALLENGE') {
+      formatInstructions = `"corrections" (array com 1 objeto contendo "line" numerico e "text" string)`;
+    } else {
+      formatInstructions = `sem campos extras`;
     }
 
-    const apiKey = process.env.NVIDIA_API_KEY;
-    if (!apiKey || apiKey === 'sua_chave_aqui') {
-      return res.status(500).json({ error: "NVIDIA_API_KEY não configurada no servidor." });
-    }
+    const systemPrompt = `Você é um assistente educacional que gera atividades estritamente em formato JSON.
+O JSON DEVE conter as chaves "title" (título curto) e "description" (enunciado formatado em markdown).
+Adicionalmente, devido ao tipo ` + tipo + `, o JSON DEVE conter estas chaves: ` + formatInstructions + `.
+NAO retorne nenhum texto fora do JSON. NAO utilize blocos markdown como \`\`\`json, retorne APENAS o objeto puro.`;
 
+    const userPrompt = `Gere uma questao do tipo ` + tipo + ` sobre ` + assunto + ` com dificuldade ` + (nivelDificuldade || 'MEDIO') + `.`;
 
-
-    const payload = {
-      model: "google/diffusiongemma-26b-a4b-it", // Ajustado para um modelo de texto válido na NIM se o gemma-4 não estiver mais listado. Se a conta tiver o 4, mude aqui.
+    const completion = await openai.chat.completions.create({
+      model: "z-ai/glm-5.3",
       messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Gere a questão sobre: ${assunto}` }
+        {"role":"system", "content": systemPrompt},
+        {"role":"user", "content": userPrompt}
       ],
-      temperature: 0.3,
+      temperature: 0.5,
+      top_p: 1,
       max_tokens: 1024,
       stream: false,
-      top_p: 1
-    };
-
-    let response;
-    try {
-      response = await axios.post('https://integrate.api.nvidia.com/v1/chat/completions', payload, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/json'
-        }
-      });
-    } catch (apiError: any) {
-      if (apiError.response) {
-        console.error(`HTTP ${apiError.response.status}`);
-        console.error(apiError.response.data);
-      } else {
-        console.error(apiError);
-      }
-      return res.status(502).json({ error: "Erro na comunicação com a IA." });
-    }
-
-    let resultText = response.data.choices[0].message.content.trim();
+    });
+     
+    let aiText = completion.choices[0]?.message?.content || "{}";
     
-    // Remove markdown code fences if model ignores the prompt
-    resultText = resultText.replace(/^\s*```json/m, '').replace(/```\s*$/m, '').trim();
+    aiText = aiText.trim();
+    if (aiText.startsWith('```json')) aiText = aiText.replace(/^```json/, '');
+    if (aiText.startsWith('```')) aiText = aiText.replace(/^```/, '');
+    if (aiText.endsWith('```')) aiText = aiText.slice(0, -3);
+    aiText = aiText.trim();
 
-    let parsed;
     try {
-      parsed = JSON.parse(resultText);
-    } catch (e) {
-      console.error("Failed to parse JSON:", resultText);
-      return res.status(502).json({ error: "A IA retornou um formato inválido, tente novamente." });
+      const parsed = JSON.parse(aiText);
+      return res.json(parsed);
+    } catch (parseError) {
+      console.error("Failed to parse JSON:", aiText);
+      return res.status(500).json({ error: "O modelo nao retornou JSON valido." });
     }
-
-    if (!parsed.title || !parsed.description) {
-      return res.status(502).json({ error: "A IA retornou dados incompletos, tente novamente." });
-    }
-
-    res.json(parsed);
-
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    res.status(500).json({ error: "Erro interno ao processar a geração." });
+    return res.status(500).json({ error: "Erro interno IA." });
   }
 });
+
 
 const PORT = process.env.PORT || 3001;
 

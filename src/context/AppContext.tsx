@@ -21,6 +21,8 @@ interface AppState {
   updateUser: (id: string, updates: Partial<User>) => Promise<void>;
   addCurso: (curso: Omit<Curso, 'id'>) => Promise<void>;
   addProva: (prova: Omit<Prova, 'id'>) => Promise<void>;
+  toggleProvaAtiva: (id: string, ativa: boolean) => Promise<void>;
+    atualizarPinProva: (id: string, pin: string) => Promise<void>;
   clonarProva: (provaId: string, novaTurmaId: string) => Promise<void>;
   addCapacidade: (cap: Omit<Capacidade, 'id'>) => Promise<void>;
   addConhecimento: (con: Omit<Conhecimento, 'id'>) => Promise<void>;
@@ -57,7 +59,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const [u, cur, pr, cap, con, at, sub, catRes, tr] = await Promise.all([
         fetch(`${API_URL}/users`).then(res => res.json()),
         fetch(`${API_URL}/cursos`).then(res => res.json()),
-        fetch(`${API_URL}/provas`).then(res => res.json()),
+        fetch(`${API_URL}/provas?role=${role || ''}`).then(res => res.json()),
         fetch(`${API_URL}/capacidades`).then(res => res.json()),
         fetch(`${API_URL}/conhecimentos`).then(res => res.json()),
         fetch(`${API_URL}/atividades?role=${role || ''}`).then(res => res.json()),
@@ -145,6 +147,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prova)
     });
     if (res.ok) await loadData();
+  };
+
+  
+  const atualizarPinProva = async (id: string, pin: string) => {
+    try {
+      const res = await fetch(`${API_URL}/provas/${id}/pin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin, userId: currentUser?.id })
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Erro ao atualizar PIN');
+      }
+      setProvas(provas.map(p => p.id === id ? { ...p, pin } : p));
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  };
+
+  const toggleProvaAtiva = async (id: string, ativa: boolean) => {
+    try {
+      const res = await fetch(`${API_URL}/provas/${id}/ativar`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativa, userId: currentUser?.id })
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Erro ao alterar status');
+      }
+      setProvas(provas.map(p => p.id === id ? { ...p, ativa } : p));
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
   };
 
   const clonarProva = async (provaId: string, novaTurmaId: string) => {
@@ -270,7 +309,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       currentUser, users, cursos, turmas, categorias, provas, capacidades, conhecimentos, atividades, submissoes,
-      login, logout, registerUser, addCurso, addCategoria, updateCategoria, deleteCategoria, addProva, addCapacidade, addConhecimento, addAtividade, addSubmissao, scoreSubmissao, addTurma, deleteTurma, togglePodeCriarTurma, uploadAlunos, addAlunoTurma, vincularAlunos, clonarProva }}>
+      login, logout, registerUser, addCurso, addCategoria, updateCategoria, deleteCategoria, addProva, addCapacidade, addConhecimento, addAtividade, addSubmissao, scoreSubmissao, addTurma, deleteTurma, togglePodeCriarTurma, uploadAlunos, addAlunoTurma, vincularAlunos, clonarProva, toggleProvaAtiva, atualizarPinProva }}>
       {children}
     </AppContext.Provider>
   );

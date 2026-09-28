@@ -17,7 +17,65 @@ const QUESTION_TYPES = [
 ];
 
 export type GrupoPrincipal = 'provas' | 'turmas' | 'avaliacao';
-export type SubAba = 'nova_prova' | 'lancar_atividade' | 'turmas' | 'cadastrar_alunos' | 'avaliar' | 'ranking';
+export type SubAba = 'nova_prova' | 'todas_avaliacoes' | 'lancar_atividade' | 'turmas' | 'cadastrar_alunos' | 'avaliar' | 'ranking';
+
+const ModalVerQuestoes: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  prova: any;
+  atividades: any[];
+}> = ({ isOpen, onClose, prova, atividades }) => {
+  if (!isOpen || !prova) return null;
+
+  const questoes = atividades.filter(a => a.provaId === prova.id);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4">
+      <div className="bg-[#1a2235] border border-blue-500/30 rounded-xl p-6 w-full max-w-3xl max-h-[85vh] flex flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-white">Questões da Avaliação</h3>
+            <p className="text-sm text-blue-400 mt-1">{prova.title}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center font-bold">
+            X
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+          {questoes.length === 0 ? (
+            <div className="text-center py-10 border border-dashed border-gray-700 rounded-lg">
+              <p className="text-gray-500">Ainda não há questões cadastradas nesta avaliação.</p>
+            </div>
+          ) : (
+            questoes.map((q, idx) => (
+              <div key={q.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex gap-4">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-900/40 text-blue-400 font-bold rounded flex items-center justify-center border border-blue-500/30">
+                  {idx + 1}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded border border-purple-500/30">
+                      {q.tipo}
+                    </span>
+                  </div>
+                  <h4 className="text-white font-bold text-sm mb-1">{q.title}</h4>
+                  <p className="text-gray-400 text-xs line-clamp-2">{q.description}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        
+        <div className="mt-6 pt-4 border-t border-gray-800 text-right">
+          <button onClick={onClose} className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 text-sm font-bold">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ModalNovoAluno: React.FC<{
   isOpen: boolean;
@@ -163,7 +221,7 @@ const SeletorDeAlunos: React.FC<{
 };
 
 export const Professor: React.FC = () => {
-  const { currentUser, users, cursos, turmas, categorias, provas, atividades, conhecimentos, capacidades, submissoes, logout, addProva, addAtividade, addTurma, deleteTurma, uploadAlunos, vincularAlunos, registerUser, clonarProva } = useAppContext();
+  const { currentUser, users, cursos, turmas, categorias, provas, atividades, conhecimentos, capacidades, submissoes, logout, addProva, addAtividade, addTurma, deleteTurma, uploadAlunos, vincularAlunos, registerUser, clonarProva, toggleProvaAtiva, atualizarPinProva } = useAppContext();
   const [grupoAtivo, setGrupoAtivo] = useState<GrupoPrincipal>('provas');
   const [subAbaAtiva, setSubAbaAtiva] = useState<SubAba>('nova_prova');
   
@@ -176,6 +234,13 @@ export const Professor: React.FC = () => {
     
   const [provaTitle, setProvaTitle] = useState('');
   const [provaDesc, setProvaDesc] = useState('');
+  const [provaAtiva, setProvaAtiva] = useState(false);
+  const [provaPin, setProvaPin] = useState('');
+  const [pinEditandoId, setPinEditandoId] = useState<string | null>(null);
+  const [pinEditandoValor, setPinEditandoValor] = useState('');
+  const [buscaProvas, setBuscaProvas] = useState('');
+  const [provaVisualizacaoId, setProvaVisualizacaoId] = useState<string | null>(null);
+  const gerarPinAleatorio = (): string => String(Math.floor(1000 + Math.random() * 9000));
   const [provaCursoId, setProvaCursoId] = useState('');
   const [selectedTurmaId, setSelectedTurmaId] = useState<string>('');
   const [modalAtribuirProvaId, setModalAtribuirProvaId] = useState<string | null>(null);
@@ -249,12 +314,18 @@ export const Professor: React.FC = () => {
     if (type === 'MULTIPLA_ESCOLHA') {
       if (iaData.options) setOptions(iaData.options);
       if (iaData.correct !== undefined) setCorrectOption(iaData.correct);
-    } else if (type === 'COMPLETAR_CODIGO') {
-      if (iaData.expected) setExpectedCode(iaData.expected);
+    } else if (type === 'COMPLETAR_CODIGO' || type === 'CODIGO_EMBARALHADO' || type === 'SEQUENCIA_LOGICA') {
+      if (iaData.expectedCode || iaData.expected) setExpectedCode(iaData.expectedCode || iaData.expected);
     } else if (type === 'COMPLETE_FRASE') {
       if (iaData.acceptedAnswers) setAcceptedAnswers(iaData.acceptedAnswers);
     } else if (type === 'TERMINAL_SIMULADO') {
       if (iaData.expectedCommand) setExpectedCommand(iaData.expectedCommand);
+    } else if (type === 'PREDICT_OUTPUT') {
+      if (iaData.expectedOutput) setExpectedOutput(iaData.expectedOutput);
+    } else if (type === 'DIAGRAMA_ASSOCIACAO') {
+      if (iaData.pairs) setPairs(iaData.pairs);
+    } else if (type === 'DEBUG_CHALLENGE') {
+      if (iaData.corrections) setCorrections(iaData.corrections);
     }
 
     setIaBadgeVisible(true);
@@ -299,8 +370,9 @@ export const Professor: React.FC = () => {
   const handleCreateProva = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!provaTitle || !provaCursoId) return alert("Preencha Título e Curso");
-    await addProva({ title: provaTitle, description: provaDesc, cursoId: provaCursoId, professorId: currentUser!.id, turmaId: selectedTurmaId } as any);
-    setProvaTitle(''); setProvaDesc(''); setProvaCursoId(''); setSelectedTurmaId('');
+    if (provaPin.length !== 4) return alert('O PIN deve ter exatamente 4 dígitos numéricos.');
+    await addProva({ title: provaTitle, description: provaDesc, cursoId: provaCursoId, professorId: currentUser!.id, turmaId: selectedTurmaId, ativa: provaAtiva, pin: provaPin } as any);
+    setProvaTitle(''); setProvaDesc(''); setProvaCursoId(''); setSelectedTurmaId(''); setProvaAtiva(false); setProvaPin('');
     alert("Avaliação criada com sucesso!");
     setSubAbaAtiva('lancar_atividade'); setGrupoAtivo('provas');
   };
@@ -368,6 +440,126 @@ export const Professor: React.FC = () => {
     }
   };
 
+  
+  const renderProvaCard = (p: any) => {
+    const curso = cursos.find(c => c.id === p.cursoId);
+    const colors: Record<string, string> = {
+      'blue-500': 'text-blue-400 bg-blue-900/30 border-blue-500/50',
+      'orange-500': 'text-orange-400 bg-orange-900/30 border-orange-500/50',
+      'green-500': 'text-green-400 bg-green-900/30 border-green-500/50',
+      'purple-500': 'text-purple-400 bg-purple-900/30 border-purple-500/50',
+      'pink-500': 'text-pink-400 bg-pink-900/30 border-pink-500/50',
+      'red-500': 'text-red-400 bg-red-900/30 border-red-500/50',
+    };
+    const badgeClass = (curso?.categoria?.cor && colors[curso.categoria.cor]) ? colors[curso.categoria.cor] : 'text-gray-400 bg-gray-800 border-gray-600';
+    
+    return (
+      <li key={p.id} className="bg-gray-900 p-3 rounded border border-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+        <div>
+          <span className="text-blue-400 font-bold block">{p.title}</span>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            {curso?.categoria && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeClass}`}>{curso.categoria.nome}</span>}
+            <span className="text-gray-500 text-xs">{curso?.name}</span>
+            {p.turmas && p.turmas.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 rounded text-xs font-bold border text-green-400 bg-green-900/30 border-green-500/50">
+                Turma: {turmas.find(t => t.id === p.turmas[0].turmaId)?.name || 'Desconhecida'}
+              </span>
+            )}
+          </div>
+        
+          <div className="flex flex-wrap items-center mt-2 gap-4">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold px-2 py-1 rounded-full ${p.ativa ? 'bg-green-900/40 text-green-400 border border-green-500/30' : 'bg-gray-800 text-gray-500 border border-gray-700'}`}>
+                {p.ativa ? 'Ativa' : 'Inativa'}
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await toggleProvaAtiva(p.id, !p.ativa);
+                  } catch (err: any) {
+                    alert(err.message || 'Erro ao alterar status da prova.');
+                  }
+                }}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${p.ativa ? 'bg-green-500' : 'bg-gray-600'}`}
+              >
+                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${p.ativa ? 'translate-x-5' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 border-l border-gray-700 pl-4">
+              <span className="text-xs text-gray-500">PIN:</span>
+              {pinEditandoId === p.id ? (
+                <>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={pinEditandoValor}
+                    onChange={e => setPinEditandoValor(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                    className="w-16 bg-gray-900 border border-blue-500 rounded px-2 py-1 text-white font-mono text-sm"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (pinEditandoValor.length !== 4) return alert('O PIN deve ter 4 dígitos.');
+                      try {
+                        await atualizarPinProva(p.id, pinEditandoValor);
+                        setPinEditandoId(null);
+                      } catch (err: any) {
+                        alert(err.message || 'Erro ao atualizar PIN.');
+                      }
+                    }}
+                    className="text-green-500 hover:text-green-400 text-xs font-bold"
+                  >
+                    Salvar
+                  </button>
+                  <button type="button" onClick={() => setPinEditandoId(null)} className="text-gray-500 hover:text-white text-xs">
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="font-mono text-white bg-gray-900 px-2 py-0.5 rounded border border-gray-700 text-sm tracking-widest">{p.pin || '----'}</span>
+                  <button type="button" onClick={() => { setPinEditandoId(p.id); setPinEditandoValor(p.pin || ''); }} className="text-blue-400 hover:text-blue-300 text-xs">
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const novoPin = gerarPinAleatorio();
+                      if (!confirm(`Gerar novo PIN aleatório (${novoPin}) para esta prova? O PIN antigo deixará de funcionar.`)) return;
+                      try {
+                        await atualizarPinProva(p.id, novoPin);
+                      } catch (err: any) {
+                        alert(err.message || 'Erro ao gerar novo PIN.');
+                      }
+                    }}
+                    className="text-yellow-500 hover:text-yellow-400 text-xs"
+                  >
+                    Gerar Novo
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-row md:flex-col gap-2">
+          <button type="button" onClick={() => setProvaVisualizacaoId(p.id)} className="text-xs bg-blue-900/50 hover:bg-blue-800 text-blue-300 px-3 py-1.5 rounded font-bold border border-blue-500/50 w-full">
+            Ver Questões
+          </button>
+          <button type="button" onClick={() => {
+            setModalAtribuirProvaId(p.id);
+            setModalAtribuirTurmaId('');
+          }} className="text-xs bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded font-bold border border-gray-600 w-full">
+            Reciclar / Clonar
+          </button>
+        </div>
+      </li>
+    );
+  };
+
   return (
     <div className="p-6">
       {/* HEADER E GRUPOS PRINCIPAIS */}
@@ -397,6 +589,7 @@ export const Professor: React.FC = () => {
         {grupoAtivo === 'provas' && (
           <>
             <button className={`px-3 py-1 rounded text-sm ${subAbaAtiva === 'nova_prova' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`} onClick={() => setSubAbaAtiva('nova_prova')}>Nova Avaliação</button>
+            <button className={`px-3 py-1 rounded text-sm ${subAbaAtiva === 'todas_avaliacoes' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`} onClick={() => setSubAbaAtiva('todas_avaliacoes')}>Todas as Avaliações</button>
             <button className={`px-3 py-1 rounded text-sm ${subAbaAtiva === 'lancar_atividade' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`} onClick={() => setSubAbaAtiva('lancar_atividade')}>Lançar Questão/Atividade</button>
           </>
         )}
@@ -452,47 +645,95 @@ export const Professor: React.FC = () => {
                   </select>
               </div>
             
+            
+            <div className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded p-3">
+              <div>
+                <p className="text-sm font-bold text-white">Prova Ativa</p>
+                <p className="text-xs text-gray-500">Provas inativas não ficam visíveis para os alunos.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProvaAtiva(!provaAtiva)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${provaAtiva ? 'bg-green-500' : 'bg-gray-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${provaAtiva ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            
+            
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">PIN de Desbloqueio (4 dígitos)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={provaPin}
+                  onChange={e => setProvaPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="0000"
+                  className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-white font-mono text-lg tracking-widest"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setProvaPin(gerarPinAleatorio())}
+                  className="bg-gray-800 border border-gray-700 px-3 rounded text-sm text-gray-300 hover:bg-gray-700 whitespace-nowrap"
+                >
+                  Gerar Aleatório
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Este PIN será solicitado se o aluno sair da tela durante a prova. Guarde-o — ele fica visível na listagem de Provas Existentes.
+              </p>
+            </div>
+            
             <button type="submit" className="bg-blue-600 px-4 py-2 rounded text-white font-bold hover:bg-blue-500">Criar Avaliação</button>
           </form>
           <div className="mt-8">
-            <h3 className="text-lg font-bold text-white mb-4">Avaliações Existentes</h3>
+            <h3 className="text-lg font-bold text-white mb-4">Avaliações Recentes</h3>
             <ul className="space-y-2">
-              {provas.filter(p => p.professorId === currentUser?.id).map(p => {
-                const curso = cursos.find(c => c.id === p.cursoId);
-                const colors: Record<string, string> = {
-                  'blue-500': 'text-blue-400 bg-blue-900/30 border-blue-500/50',
-                  'orange-500': 'text-orange-400 bg-orange-900/30 border-orange-500/50',
-                  'green-500': 'text-green-400 bg-green-900/30 border-green-500/50',
-                  'purple-500': 'text-purple-400 bg-purple-900/30 border-purple-500/50',
-                  'pink-500': 'text-pink-400 bg-pink-900/30 border-pink-500/50',
-                  'red-500': 'text-red-400 bg-red-900/30 border-red-500/50',
-                };
-                const badgeClass = (curso?.categoria?.cor && colors[curso.categoria.cor]) ? colors[curso.categoria.cor] : 'text-gray-400 bg-gray-800 border-gray-600';
-                
-                return (
-                <li key={p.id} className="bg-gray-900 p-3 rounded border border-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-                  <div>
-                    <span className="text-blue-400 font-bold block">{p.title}</span>
-                    <div className="flex flex-wrap items-center gap-2 mt-1">
-                      {curso?.categoria && <span className={`px-2 py-0.5 rounded text-xs font-bold border ${badgeClass}`}>{curso.categoria.nome}</span>}
-                      <span className="text-gray-500 text-xs">{curso?.name}</span>
-                      {(p as any).turmas && (p as any).turmas.length > 0 && (
-                        <span className="ml-2 px-2 py-0.5 rounded text-xs font-bold border text-green-400 bg-green-900/30 border-green-500/50">
-                          Turma: {turmas.find(t => t.id === (p as any).turmas[0].turmaId)?.name || 'Desconhecida'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => {
-                    setModalAtribuirProvaId(p.id);
-                    setModalAtribuirTurmaId('');
-                  }} className="text-xs bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded font-bold border border-gray-600">
-                    Reciclar / Clonar Avaliação
-                  </button>
-                </li>
-              )})}
+              {provas.filter(p => p.professorId === currentUser?.id).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0, 5).map(p => renderProvaCard(p))}
             </ul>
+            <div className="mt-4 text-center">
+              <button type="button" onClick={() => setSubAbaAtiva('todas_avaliacoes')} className="text-blue-400 hover:text-blue-300 text-sm font-bold">Ver todas as avaliações &rarr;</button>
+            </div>
           </div>
+        </div>
+      )}
+
+      
+      {subAbaAtiva === 'todas_avaliacoes' && (
+        <div className="bg-[#1a2235] p-6 rounded-lg border border-gray-800">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <h2 className="text-xl font-bold text-white">Todas as Avaliações</h2>
+            <div className="w-full md:w-1/3">
+              <input
+                type="text"
+                placeholder="Buscar por título ou curso..."
+                value={buscaProvas}
+                onChange={e => setBuscaProvas(e.target.value)}
+                className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white text-sm"
+              />
+            </div>
+          </div>
+          <ul className="space-y-2">
+            {provas.filter(p => p.professorId === currentUser?.id).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).filter(p => {
+              if (!buscaProvas) return true;
+              const q = buscaProvas.toLowerCase();
+              const curso = cursos.find(c => c.id === p.cursoId);
+              const cat = curso?.categoria?.nome || '';
+              return p.title.toLowerCase().includes(q) || (curso?.name || '').toLowerCase().includes(q) || cat.toLowerCase().includes(q);
+            }).map(p => renderProvaCard(p))}
+            {provas.filter(p => p.professorId === currentUser?.id).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).filter(p => {
+              if (!buscaProvas) return true;
+              const q = buscaProvas.toLowerCase();
+              const curso = cursos.find(c => c.id === p.cursoId);
+              const cat = curso?.categoria?.nome || '';
+              return p.title.toLowerCase().includes(q) || (curso?.name || '').toLowerCase().includes(q) || cat.toLowerCase().includes(q);
+            }).length === 0 && (
+              <p className="text-gray-500 text-center py-8">Nenhuma avaliação encontrada com esta busca.</p>
+            )}
+          </ul>
         </div>
       )}
 
@@ -1164,6 +1405,12 @@ export const Professor: React.FC = () => {
         </div>
       )}
 
+      <ModalVerQuestoes 
+        isOpen={!!provaVisualizacaoId} 
+        onClose={() => setProvaVisualizacaoId(null)} 
+        prova={provas.find(p => p.id === provaVisualizacaoId)} 
+        atividades={atividades} 
+      />
     </div>
   );
 };

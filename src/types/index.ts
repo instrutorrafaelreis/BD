@@ -43,6 +43,8 @@ export interface Prova {
   cursoId: string;
   professorId: string;
   turmaIds?: string[];
+  ativa?: boolean;
+  pin?: string;
 }
 
 export interface ProgressoProva {

@@ -390,7 +390,7 @@ export const Aluno: React.FC = () => {
         <div className="grid md:grid-cols-2 gap-8">
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white mb-4">Missões Abertas</h2>
-            {provas.map(prova => {
+            {provas.filter(p => p.ativa).map(prova => {
               const pAtivs = atividades.filter(a => a.provaId === prova.id);
               if (pAtivs.length === 0) return null;
               const completed = pAtivs.filter(a => minhasSubmissoes.some(s => s.atividadeId === a.id)).length;
@@ -410,7 +410,7 @@ export const Aluno: React.FC = () => {
           </div>
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white mb-4">Concluídas</h2>
-            {provas.map(prova => {
+            {provas.filter(p => p.ativa).map(prova => {
               const pAtivs = atividades.filter(a => a.provaId === prova.id);
               if (pAtivs.length === 0) return null;
               const completed = pAtivs.filter(a => minhasSubmissoes.some(s => s.atividadeId === a.id)).length;
