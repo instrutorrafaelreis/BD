@@ -25,13 +25,14 @@ const AnimatedXP = ({ xp }: { xp: number }) => {
 export const Aluno: React.FC = () => {
   const { currentUser, users, provas, atividades, submissoes, addSubmissao, capacidades } = useAppContext();
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'ranking'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'ranking' | 'correcoes'>('dashboard');
   const [activeProvaId, setActiveProvaId] = useState<string | null>(null);
   const [progresso, setProgresso] = useState<ProgressoProva | null>(null);
   
   const [answerText, setAnswerText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isFinished, setIsFinished] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
 
   // Gamification State
   const [timeSpent, setTimeSpent] = useState(0);
@@ -80,7 +81,7 @@ export const Aluno: React.FC = () => {
   const handleStartProva = (provaId: string) => {
     setActiveProvaId(provaId);
     setAnswerText(''); setAssocAnswers({}); setDebugLine(0); setDebugText('');
-    setFeedbackToast(null); setShowChests(false);
+    setFeedbackToast(null); setShowChests(false); setIsReviewing(false);
     loadProgress(provaId);
   };
 
@@ -99,7 +100,7 @@ export const Aluno: React.FC = () => {
     if (timerRef.current) clearInterval(timerRef.current);
 
     let finalAnswer = answerText;
-    if (currentAtividade.type === 'MULTIPLA_ESCOLHA' || (currentAtividade.type === 'PREDICT_OUTPUT' && config.isMultipleChoice)) {
+    if (currentAtividade.type === 'SAEP' || currentAtividade.type === 'MULTIPLA_ESCOLHA' || (currentAtividade.type === 'PREDICT_OUTPUT' && config.isMultipleChoice)) {
       finalAnswer = JSON.stringify({ selected: parseInt(answerText) });
     } else if (currentAtividade.type === 'COMPLETAR_CODIGO') {
       finalAnswer = JSON.stringify({ code: answerText });
@@ -173,7 +174,78 @@ export const Aluno: React.FC = () => {
   };
 
   if (activeProvaId && progresso) {
+    
     if (isFinished) {
+      if (isReviewing) {
+        return (
+          <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-500">
+            <div className="flex justify-between items-center bg-[#1a2235] p-6 rounded-2xl border border-gray-800">
+              <h1 className="text-2xl font-black text-white">Gabarito Comentado</h1>
+              <button onClick={() => setIsReviewing(false)} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-lg transition-all">Voltar ao Radar</button>
+            </div>
+            
+            <div className="space-y-6">
+              {activeProvaAtividades.map((ativ, index) => {
+                const sub = minhasSubmissoes.find(s => s.atividadeId === ativ.id);
+                const cfg = ativ.configData ? JSON.parse(ativ.configData) : {};
+                const isCorrect = sub && sub.score && sub.score > 0; // simplistic assumption for now
+                let studentAnswer = 'Nenhuma resposta';
+                try {
+                  const ansObj = JSON.parse(sub?.answerText || '{}');
+                  if (ansObj.selected !== undefined) studentAnswer = `Alternativa ${String.fromCharCode(65 + ansObj.selected)} - ${cfg.options ? cfg.options[ansObj.selected] : ''}`;
+                  else if (ansObj.code) studentAnswer = 'Código enviado';
+                  else if (ansObj.text) studentAnswer = ansObj.text;
+                  else studentAnswer = sub?.answerText || 'Sem resposta';
+                } catch(e) {
+                  studentAnswer = sub?.answerText || 'Sem resposta';
+                }
+
+                return (
+                  <div key={ativ.id} className={`p-6 rounded-2xl border ${isCorrect ? 'bg-green-900/10 border-green-500/30' : 'bg-red-900/10 border-red-500/30'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <span className="bg-gray-800 text-gray-300 w-8 h-8 rounded-full flex items-center justify-center text-sm">{index + 1}</span>
+                        {ativ.title}
+                      </h3>
+                      <span className={`font-bold px-3 py-1 rounded-full text-xs ${isCorrect ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {isCorrect ? 'Acertou' : 'Errou'}
+                      </span>
+                    </div>
+                    
+                    {ativ.type === 'SAEP' && (
+                      <div className="bg-gray-900/50 p-4 rounded-lg border border-gray-800 mb-4 text-sm text-gray-300">
+                        <p className="mb-2"><strong className="text-blue-400">Contexto:</strong> {cfg.contexto}</p>
+                        <p><strong className="text-blue-400">Comando:</strong> {cfg.comando}</p>
+                      </div>
+                    )}
+                    
+                    <div className="grid md:grid-cols-2 gap-4 mb-4 text-sm">
+                      <div className="bg-gray-800 p-4 rounded-lg">
+                        <strong className="text-gray-400 block mb-1">Sua Resposta:</strong>
+                        <p className="text-white">{studentAnswer}</p>
+                      </div>
+                      <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-500/20">
+                        <strong className="text-blue-400 block mb-1">Gabarito:</strong>
+                        <p className="text-white">
+                           {cfg.correct !== undefined && cfg.options ? `Alternativa ${String.fromCharCode(65 + cfg.correct)} - ${cfg.options[cfg.correct]}` : 'Verifique a explicação'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {(cfg.explicacao || ativ.type === 'SAEP') && (
+                      <div className="bg-yellow-900/20 border border-yellow-500/30 p-4 rounded-lg text-sm">
+                        <strong className="text-yellow-500 block mb-1"><HelpCircle className="w-4 h-4 inline mr-1" /> Explicação do Professor:</strong>
+                        <p className="text-gray-300">{cfg.explicacao || 'Nenhuma explicação detalhada cadastrada para esta questão.'}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
       const performance = getCapacidadePerformance();
       return (
         <div className="flex flex-col items-center justify-center min-h-[80vh] space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -190,10 +262,14 @@ export const Aluno: React.FC = () => {
               ))}
             </div>
           </div>
-          <button onClick={() => { setActiveProvaId(null); setProgresso(null); setIsFinished(false); }} className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Voltar ao QG</button>
+          <div className="flex gap-4">
+            <button onClick={() => setIsReviewing(true)} className="px-8 py-3 bg-gray-800 text-white font-bold rounded-lg hover:bg-gray-700 border border-gray-600 transition-all flex items-center gap-2"><Eye className="w-5 h-5"/> Ver Gabarito Comentado</button>
+            <button onClick={() => { setActiveProvaId(null); setProgresso(null); setIsFinished(false); }} className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all">Voltar ao QG</button>
+          </div>
         </div>
       );
     }
+
 
     if (!currentAtividade) return null;
 
@@ -300,7 +376,17 @@ export const Aluno: React.FC = () => {
               <textarea placeholder="Sua resposta..." value={answerText} onChange={e => setAnswerText(e.target.value)} rows={5} className="w-full bg-gray-900 border border-gray-700 rounded-lg p-4 text-white text-lg focus:border-blue-500" required></textarea>
             )}
 
-            {(currentAtividade.type === 'MULTIPLA_ESCOLHA' || (currentAtividade.type === 'PREDICT_OUTPUT' && config.isMultipleChoice)) && config.options && (
+            
+            {currentAtividade.type === 'SAEP' && (
+              <div className="mb-6 bg-gray-800/80 p-5 rounded-xl border border-blue-500/30 shadow-lg">
+                <h4 className="text-blue-400 text-sm font-black uppercase tracking-wider mb-2">Contexto</h4>
+                <p className="text-gray-300 text-base mb-6 whitespace-pre-wrap leading-relaxed">{config.contexto}</p>
+                <h4 className="text-blue-400 text-sm font-black uppercase tracking-wider mb-2">Comando</h4>
+                <p className="text-white text-lg font-bold whitespace-pre-wrap leading-relaxed">{config.comando}</p>
+              </div>
+            )}
+
+            {(currentAtividade.type === 'SAEP' || currentAtividade.type === 'MULTIPLA_ESCOLHA' || (currentAtividade.type === 'PREDICT_OUTPUT' && config.isMultipleChoice)) && config.options && (
               <div className="space-y-3">
                 {config.options.map((opt: string, i: number) => (
                   <label key={i} className={`flex items-center gap-4 p-4 rounded-lg cursor-pointer border-2 transition-all ${answerText === String(i) ? 'border-blue-500 bg-blue-900/20' : 'border-gray-700 bg-gray-800/50'}`}>
@@ -379,12 +465,27 @@ export const Aluno: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-end mb-8">
-        <div><h1 className="text-3xl font-bold text-blue-400">Área do Aluno</h1></div>
+        
+        <div className="flex items-center gap-6">
+          <div className="w-20 h-20 bg-gray-800 rounded-2xl border-2 border-blue-500/50 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+             <span className="text-3xl font-black text-white">{Math.floor(myTotalXP / 500) + 1}</span>
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-1">Bem-vindo, {currentUser?.name}!</h1>
+            <p className="text-blue-400 font-bold text-sm uppercase tracking-widest">Nível {Math.floor(myTotalXP / 500) + 1} • Aprendiz</p>
+            <div className="w-48 bg-gray-800 rounded-full h-2 mt-2 border border-gray-700">
+               <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${((myTotalXP % 500) / 500) * 100}%` }}></div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">{500 - (myTotalXP % 500)} XP para o próximo nível</p>
+          </div>
+        </div>
+
         <div className="bg-blue-900/40 border border-blue-500/50 px-6 py-3 rounded-lg text-center"><p className="text-sm text-blue-300 font-bold">Seu XP Total</p><p className="text-4xl font-black text-white"><AnimatedXP xp={myTotalXP} /></p></div>
       </div>
       <div className="flex gap-4 border-b border-gray-800 pb-2">
         <button className={`pb-2 px-4 ${activeTab === 'dashboard' ? 'border-b-2 border-blue-500 text-white font-bold' : 'text-gray-500'}`} onClick={() => setActiveTab('dashboard')}>Missões</button>
         <button className={`pb-2 px-4 ${activeTab === 'ranking' ? 'border-b-2 border-blue-500 text-white font-bold' : 'text-gray-500'}`} onClick={() => setActiveTab('ranking')}>Ranking</button>
+        <button className={`pb-2 px-4 ${activeTab === 'correcoes' ? 'border-b-2 border-blue-500 text-white font-bold' : 'text-gray-500'}`} onClick={() => setActiveTab('correcoes')}>Gabaritos & Correções</button>
       </div>
       {activeTab === 'dashboard' && (
         <div className="grid md:grid-cols-2 gap-8">

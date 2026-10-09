@@ -5,6 +5,7 @@ import { Navigation } from '../components/Navigation';
 
 const QUESTION_TYPES = [
   { id: 'UPLOAD', title: 'Padrão (Envio)', icon: Upload, desc: 'Envio de arquivo ou texto livre.', cat: 'Geral' },
+  { id: 'SAEP', title: 'SAEP', icon: FileText, desc: 'Contexto, Comando e Alternativas.', cat: 'Geral' },
   { id: 'MULTIPLA_ESCOLHA', title: 'Múltipla Escolha', icon: List, desc: 'Clássico teste de alternativas.', cat: 'Geral' },
   { id: 'COMPLETAR_CODIGO', title: 'Completar Código', icon: Code, desc: 'Aluno preenche o trecho faltante.', cat: 'Tecnologia' },
   { id: 'CODIGO_EMBARALHADO', title: 'Embaralhado', icon: AlignLeft, desc: 'Drag & Drop de linhas de código.', cat: 'Tecnologia' },
@@ -17,7 +18,7 @@ const QUESTION_TYPES = [
 ];
 
 export type GrupoPrincipal = 'provas' | 'turmas' | 'avaliacao';
-export type SubAba = 'nova_prova' | 'todas_avaliacoes' | 'lancar_atividade' | 'turmas' | 'cadastrar_alunos' | 'avaliar' | 'ranking';
+export type SubAba = 'nova_prova' | 'todas_avaliacoes' | 'lancar_atividade' | 'turmas' | 'cadastrar_alunos' | 'avaliar' | 'ranking' | 'explicacoes_saep';
 
 const ModalVerQuestoes: React.FC<{
   isOpen: boolean;
@@ -247,6 +248,10 @@ export const Professor: React.FC = () => {
   const [modalAtribuirTurmaId, setModalAtribuirTurmaId] = useState<string>('');
 
   const [title, setTitle] = useState('');
+  const [saepContexto, setSaepContexto] = useState('');
+  const [saepComando, setSaepComando] = useState('');
+  const [saepExplicacao, setSaepExplicacao] = useState('');
+
   const [description, setDescription] = useState('');
   const [provaId, setProvaId] = useState('');
   const [selectedCaps, setSelectedCaps] = useState<string[]>([]);
@@ -382,7 +387,7 @@ export const Professor: React.FC = () => {
     setTitle(''); setDescription(''); setSelectedCaps([]); setSelectedCons([]);
     setType('UPLOAD'); setActivityFilter('Todas');
     setOptions(['', '', '', '']); setCorrectOption(0);
-    setExpectedCode(''); setExpectedOutput(''); setIsMultipleChoice(false);
+    setExpectedCode(''); setSaepContexto(''); setSaepComando(''); setSaepExplicacao(''); setExpectedOutput(''); setIsMultipleChoice(false);
     setExpectedCommand(''); setAcceptedAnswers(['']);
     setPairs([{ left: '', right: '' }]); setCorrections([{ line: 0, text: '' }]);
     setIaBadgeVisible(false);
@@ -407,7 +412,8 @@ export const Professor: React.FC = () => {
     if (custoXpDica > xpBase) return alert("O custo da dica não pode ser maior que o XP base.");
     
     let configData: any = {};
-    if (type === 'MULTIPLA_ESCOLHA') configData = { options, correct: correctOption };
+    if (type === 'SAEP') configData = { contexto: saepContexto, comando: saepComando, options, correct: correctOption, explicacao: saepExplicacao };
+    else if (type === 'MULTIPLA_ESCOLHA') configData = { options, correct: correctOption };
     else if (type === 'COMPLETAR_CODIGO') configData = { expected: expectedCode };
     else if (type === 'CODIGO_EMBARALHADO' || type === 'SEQUENCIA_LOGICA') configData = { lines: expectedCode.split('\n').filter(l => l.trim() !== '') };
     else if (type === 'PREDICT_OUTPUT') configData = { expected: expectedOutput, isMultipleChoice, options, correct: correctOption };
@@ -422,7 +428,7 @@ export const Professor: React.FC = () => {
       temBauBonus, resultadosBau
     };
 
-    addAtividade({ title, description, type, configData: JSON.stringify({...configData, gamification}), professorId: currentUser!.id, provaId } as any);
+    addAtividade({ title, description: type === 'SAEP' ? saepComando : description, type, configData: JSON.stringify({...configData, gamification}), professorId: currentUser!.id, provaId } as any);
     setTitle(''); setDescription('');
     alert("Atividade salva com sucesso!");
   };
@@ -604,6 +610,7 @@ export const Professor: React.FC = () => {
         {grupoAtivo === 'avaliacao' && (
           <>
             <button className={`px-3 py-1 rounded text-sm ${subAbaAtiva === 'avaliar' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`} onClick={() => setSubAbaAtiva('avaliar')}>Avaliar Alunos</button>
+            <button className={`px-3 py-1 rounded text-sm ${subAbaAtiva === 'explicacoes_saep' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`} onClick={() => setSubAbaAtiva('explicacoes_saep')}>Explicações SAEP</button>
             <button className={`px-3 py-1 rounded text-sm ${subAbaAtiva === 'ranking' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`} onClick={() => setSubAbaAtiva('ranking')}>Ranking Geral</button>
           </>
         )}
@@ -774,9 +781,9 @@ export const Professor: React.FC = () => {
                     {QUESTION_TYPES.filter(qt => activityFilter === 'Todas' || qt.cat === activityFilter).map(qt => (
                       <button 
                         key={qt.id} type="button" onClick={() => setType(qt.id)}
-                        className={`p-3 rounded-lg flex flex-col items-center justify-center text-center gap-2 border-2 transition-all \${type === qt.id ? 'border-blue-500 bg-blue-900/30 scale-105' : 'border-gray-800 bg-gray-900 hover:border-gray-600'}`}
+                        className={`p-3 rounded-lg flex flex-col items-center justify-center text-center gap-2 border-2 transition-all ${type === qt.id ? 'border-blue-500 bg-blue-900/30 scale-105' : 'border-gray-800 bg-gray-900 hover:border-gray-600'}`}
                       >
-                        <qt.icon className={`w-8 h-8 \${type === qt.id ? 'text-blue-400' : 'text-gray-500'}`} />
+                        <qt.icon className={`w-8 h-8 ${type === qt.id ? 'text-blue-400' : 'text-gray-500'}`} />
                         <span className="text-xs font-bold text-white">{qt.title}</span>
                       </button>
                     ))}
@@ -795,9 +802,46 @@ export const Professor: React.FC = () => {
                     <span className="text-xs bg-purple-900/30 border border-purple-500/50 text-purple-400 px-2 py-0.5 rounded mt-2 inline-block">✨ Gerada por IA</span>
                   )}
                 </div>
-                <div><label className="block text-sm text-gray-400 mb-1">Enunciado (Markdown)</label><textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white h-24 font-mono text-sm" required /></div>
+                {type !== 'SAEP' && (
+                  <div><label className="block text-sm text-gray-400 mb-1">Enunciado (Markdown)</label><textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white h-24 font-mono text-sm" required /></div>
+                )}
 
                 {/* DYNAMIC FIELDS BASED ON TYPE */}
+                
+                {type === 'SAEP' && (
+                  <div className="space-y-4 mt-4 border-t border-gray-700 pt-4">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Contexto</label>
+                      <textarea value={saepContexto} onChange={e => setSaepContexto(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white h-24 text-sm" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Comando (Pergunta/Instrução)</label>
+                      <textarea value={saepComando} onChange={e => setSaepComando(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white h-16 text-sm" required />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm text-gray-400 mb-1">Alternativas</label>
+                      {options.map((opt, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input type="radio" name="saepCorrectOption" checked={correctOption === i} onChange={() => setCorrectOption(i)} />
+                          <input type="text" value={opt} onChange={e => {
+                            const newOpts = [...options];
+                            newOpts[i] = e.target.value;
+                            setOptions(newOpts);
+                          }} className="flex-1 bg-gray-900 border border-gray-700 rounded p-1 text-white text-sm" placeholder={`Alternativa ${i + 1}`} required />
+                          {options.length > 2 && (
+                            <button type="button" onClick={() => setOptions(options.filter((_, idx) => idx !== i))} className="text-red-500 hover:text-red-400 font-bold px-2">X</button>
+                          )}
+                        </div>
+                      ))}
+                      <button type="button" onClick={() => setOptions([...options, ''])} className="text-blue-400 hover:text-blue-300 text-xs mt-2">+ Adicionar Alternativa</button>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Explicação da Questão (Aparecerá na aba Explicações SAEP)</label>
+                      <textarea value={saepExplicacao} onChange={e => setSaepExplicacao(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white h-20 text-sm" required />
+                    </div>
+                  </div>
+                )}
+
                 {type === 'MULTIPLA_ESCOLHA' && (
                   <div className="space-y-2 mt-4 border-t border-gray-700 pt-4">
                     <label className="block text-sm text-gray-400 mb-1">Opções de Resposta</label>
@@ -1193,6 +1237,63 @@ export const Professor: React.FC = () => {
 
       {subAbaAtiva === 'ranking' && (
         <div className="text-white p-6 bg-[#1a2235] rounded-lg border border-gray-800">Ranking Geral (Placeholder)</div>
+      )}
+
+      
+
+      {subAbaAtiva === 'explicacoes_saep' && (
+        <div className="bg-[#1a2235] p-6 rounded-lg border border-gray-800">
+          <h2 className="text-xl font-bold text-white mb-6">Explicações das Questões SAEP</h2>
+          
+          <div className="mb-6">
+            <label className="block text-sm text-gray-400 mb-1">Selecione uma Prova com questões SAEP</label>
+            <select value={provaVisualizacaoId || ''} onChange={e => setProvaVisualizacaoId(e.target.value)} className="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white">
+              <option value="">-- Selecione a Avaliação --</option>
+              {provas.filter(p => atividades.some(a => a.provaId === p.id && a.type === 'SAEP')).map(p => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+          </div>
+
+          {provaVisualizacaoId && (
+            <div className="space-y-6">
+              {atividades.filter(a => a.provaId === provaVisualizacaoId && a.type === 'SAEP').length === 0 ? (
+                <p className="text-gray-500 italic">Nenhuma questão modelo SAEP encontrada nesta prova.</p>
+              ) : (
+                atividades.filter(a => a.provaId === provaVisualizacaoId && a.type === 'SAEP').map((ativ, idx) => {
+                  let cfg: any = {};
+                  try { cfg = JSON.parse(ativ.configData || '{}'); } catch(e){}
+                  return (
+                    <div key={ativ.id} className="bg-gray-800 p-4 rounded border border-gray-700">
+                      <div className="flex gap-2 items-start mb-4">
+                        <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shrink-0">{idx + 1}</div>
+                        <div>
+                          <h4 className="text-lg font-bold text-white">{ativ.title || 'Questão SAEP'}</h4>
+                          <p className="text-sm text-gray-400 mt-2"><strong className="text-gray-300">Contexto:</strong><br/>{cfg.contexto}</p>
+                          <p className="text-sm text-white mt-3 font-semibold"><strong className="text-gray-300 font-normal">Comando:</strong><br/>{cfg.comando}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="ml-10 space-y-2 mb-4">
+                        <strong className="text-gray-300 text-sm">Alternativas:</strong>
+                        {cfg.options && cfg.options.map((opt: string, oIdx: number) => (
+                          <div key={oIdx} className={`p-2 rounded text-sm border ${oIdx === cfg.correct ? 'bg-green-900/30 border-green-500/50 text-green-300 font-bold' : 'bg-gray-900 border-gray-700 text-gray-300'}`}>
+                            {String.fromCharCode(65 + oIdx)}) {opt} {oIdx === cfg.correct && '✓ Correta'}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="ml-10 bg-blue-900/20 border border-blue-500/30 p-4 rounded mt-4">
+                        <strong className="text-blue-300 block mb-1">Explicação da Questão:</strong>
+                        <p className="text-sm text-gray-300">{cfg.explicacao || 'Nenhuma explicação fornecida para esta questão.'}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {subAbaAtiva === 'cadastrar_alunos' && !currentUser?.podeCriarTurma && (

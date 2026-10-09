@@ -285,7 +285,7 @@ app.get('/api/submissoes', async (req, res) => {
       let baseScore = config.xpBase || (config.nivelDificuldade === 'FACIL' ? 50 : config.nivelDificuldade === 'DIFICIL' ? 150 : config.nivelDificuldade === 'BOSS' ? 300 : 100);
       let partialMultiplier = 0;
 
-      if (atividade.type === 'MULTIPLA_ESCOLHA' || (atividade.type === 'PREDICT_OUTPUT' && config.isMultipleChoice)) {
+      if (atividade.type === 'SAEP' || atividade.type === 'MULTIPLA_ESCOLHA' || (atividade.type === 'PREDICT_OUTPUT' && config.isMultipleChoice)) {
         if (answerObj.selected === config.correct) {
           isCorrect = true;
           partialMultiplier = 1;
