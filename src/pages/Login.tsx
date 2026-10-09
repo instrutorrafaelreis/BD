@@ -36,7 +36,7 @@ export const Login: React.FC = () => {
     e.preventDefault();
     if (novaSenha !== confirmarSenha) return setPassError('As senhas não coincidem.');
     try {
-      const res = await fetch(`http://localhost:3001/api/usuarios/trocar-senha`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/usuarios/trocar-senha`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser!.id, senhaAtual: password, novaSenha })
       });
@@ -115,7 +115,7 @@ export const Login: React.FC = () => {
               <p className="text-yellow-500 font-medium">Banco de dados vazio.</p>
               <button 
                 onClick={async () => {
-                  await fetch('http://localhost:3001/api/seed', { method: 'POST' });
+                  await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api/seed', { method: 'POST' });
                   window.location.reload();
                 }}
                 className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold w-full transition-colors"
