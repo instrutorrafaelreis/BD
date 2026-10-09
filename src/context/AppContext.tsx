@@ -37,7 +37,7 @@ interface AppState {
   vincularAlunos: (turmaId: string, alunoIds: string[]) => Promise<any>;
 }
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api';
+const API_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001') + '/api';
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
@@ -119,19 +119,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   
   const addCategoria = async (cat: Partial<Categoria>) => {
-    await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api/categorias', {
+    await fetch((import.meta.env.VITE_API_URL ?? 'http://localhost:3001') + '/api/categorias', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cat)
     });
     loadData();
   };
   const updateCategoria = async (id: string, cat: Partial<Categoria>) => {
-    await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/categorias/${id}`, {
+    await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/categorias/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cat)
     });
     loadData();
   };
   const deleteCategoria = async (id: string) => {
-    await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/categorias/${id}`, { method: 'DELETE' });
+    await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/categorias/${id}`, { method: 'DELETE' });
     loadData();
   };
 

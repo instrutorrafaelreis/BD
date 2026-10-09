@@ -71,7 +71,7 @@ export const Aluno: React.FC = () => {
 
   const loadProgress = async (provaId: string) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/progresso?alunoId=${currentUser?.id}&provaId=${provaId}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/progresso?alunoId=${currentUser?.id}&provaId=${provaId}`);
       const data = await res.json();
       setProgresso(data);
       setIsFinished(data.currentIndex >= activeProvaAtividades.length);

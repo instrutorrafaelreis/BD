@@ -107,7 +107,7 @@ const ModalNovoAluno: React.FC<{
               if (!nome || !email) return setErro("Preencha nome e e-mail.");
               setLoading(true); setErro('');
               try {
-                const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api/users', {
+                const res = await fetch((import.meta.env.VITE_API_URL ?? 'http://localhost:3001') + '/api/users', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ name: nome, username: email, role: 'aluno', password: 'mudar123', senhaTemporaria: true })
@@ -288,7 +288,7 @@ export const Professor: React.FC = () => {
     setIaLoading(true);
     setIaData(null);
     try {
-      const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api/ia/gerar-atividade', {
+      const res = await fetch((import.meta.env.VITE_API_URL ?? 'http://localhost:3001') + '/api/ia/gerar-atividade', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1312,7 +1312,7 @@ export const Professor: React.FC = () => {
               const name = f.get('nome') as string;
               const username = f.get('email') as string;
               try {
-                const res = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api/users', {
+                const res = await fetch((import.meta.env.VITE_API_URL ?? 'http://localhost:3001') + '/api/users', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ name, username, role: 'aluno', password: 'mudar123', senhaTemporaria: true })
@@ -1355,7 +1355,7 @@ export const Professor: React.FC = () => {
                 if (!sel || !sel.value) return alert('Selecione um aluno!');
                 if (!confirm('Tem certeza que deseja resetar a senha deste aluno para mudar123?')) return;
                 try {
-                  const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/users/${sel.value}`, {
+                  const res = await fetch(`${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/users/${sel.value}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ password: 'mudar123', senhaTemporaria: true })
