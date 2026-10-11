@@ -1059,7 +1059,7 @@ app.post('/api/turmas/:turmaId/alunos/upload', upload.single('file'), async (req
 // Serve static frontend in production
 const frontendPath = path.join(__dirname, '../public');
 app.use(express.static(frontendPath));
-app.get('*', (req, res) => {
+app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
